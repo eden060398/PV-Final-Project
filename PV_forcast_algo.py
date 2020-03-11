@@ -1,8 +1,14 @@
 
 import math
 import datetime
+from datetime import datetime
 
 
+#get the day from a date
+
+
+def day_number(date):
+    return datetime(date).timetuple().tm_yday
 #formula 1
 # day variable is the day in the year in number from 1 to 365
 def calc_extraterrestrial_irradiation(day):
@@ -44,7 +50,7 @@ def calc_DT(date):
         return 1
 
 
-print(DT(datetime.date(2018,3,24)))
+
 def calc_LST(clock_time,DT,day):
     L_std=15
     L_loc=8.431667
@@ -60,9 +66,40 @@ def calc_E(day):
 
 #formula 8
 # clearness index calculation
-# def calc_clearness_index
 
 
 def calc_Zenith_angle(declimation_angle,latitude_angle,hour_angle):
     return math.sin(declimation_angle)*math.sin(latitude_angle)+math.cos(declimation_angle)*math.cos(latitude_angle)*math.cos(hour_angle)
+
+def calc_I_ot(day,declimation_angle,latitude_angle,hour_angle):
+    return calc_extraterrestrial_irradiation(day)*calc_Zenith_angle(declimation_angle,latitude_angle,hour_angle)
+
+def calc_clearness_index(Iot,Ighi):
+    index=Ighi/Iot
+    return index
+
+def diffused_irradiance(clearness_index,Ighi):
+    return (1-1.13*clearness_index)*Ighi
+
+def direct_irradiance(Ighi,Idiffused):
+    return Ighi-Idiffused
+
+def total_angle(latitude_angle,zenith_angle,tilt_angle):
+    return latitude_angle-zenith_angle-tilt_angle
+
+#the direct irradiance at the tilted surface is calculated as follows
+
+def direct_irradiance_at_surface(total_angle,zenith_angle,direct_irradiance):
+    return direct_irradiance*(math.cos(total_angle)/math.cos(zenith_angle))
+
+def diffused_irradiance_tilt(diffused_irradiance,tilt_angle):
+    return 0.5*diffused_irradiance*(1+math.cos(tilt_angle))
+
+#ρ is the ground albedo: usually 0.2 but can reach up to 0.8 in snow and ice
+def diffused_irradiance_ground_reflection(Ighi,tilt_angle,p):
+    return 0.5*p*Ighi*(1-math.cos(tilt_angle))
+
+def total_irradiance(I_ground_reflection,I_tilt,I_direct):
+    return I_ground_reflection+I_tilt+I_direct
+
 
