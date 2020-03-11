@@ -35,10 +35,14 @@ def load_data():
         parsed_data_2018['rainfall'].append(float(data_2018['Rainfall_mm_'][i]))
 
     data_2018_2 = parse_csv('data/DATA2_of_2018.csv')
-    parsed_data_2018_2 = {'datetime': []}
+    parsed_data_2018_2 = {'datetime': [], 'radiation': [], 'power': []}
     for i in range(data_2018['line_count']):
         datetime_str = data_2018_2['Date'][i] + ' ' + data_2018_2['Time'][i]
         parsed_data_2018_2['datetime'].append(datetime.datetime.strptime(datetime_str,
                                                                          '%d/%m/%Y %H:%M:%S'))
+        parsed_data_2018_2['radiation'].append(float(data_2018_2['PV_rad'][i]))
+        parsed_data_2018_2['power'].append(float(data_2018_2['PV_Pel'][i]))
 
     return parsed_data_2018, parsed_data_2018_2
+
+load_data()
