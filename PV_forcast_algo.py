@@ -8,7 +8,7 @@ from datetime import datetime
 
 #get the day from a date
 def day_number(date):
-    return datetime(date).timetuple().tm_yday
+    return date.timetuple().tm_yday
 #formula 1
 # day variable is the day in the year in number from 1 to 365
 def calc_extraterrestrial_irradiation(day):
@@ -19,7 +19,7 @@ def calc_extraterrestrial_irradiation(day):
 # the equation is calculated in radians
 
 def clac_declination_angle(day):
-    return 23.45*math.sin((360(day+240))/365)
+    return 23.45*math.sin((360*(day+240))/365)
 
 
 #formula 3
@@ -42,8 +42,8 @@ def calc_hour_angle (time):
 # we calculated the logitude degree according to https://www.fcc.gov/media/radio/dms-decimal and we got that the logitude degree is 8.431667
 
 def calc_DT(date):
-    start_date=datetime.date(2018,3,25)
-    end_date=datetime.date(2018,10,28)
+    start_date=datetime(2018,1,1)
+    end_date=datetime(2018,12,31)
     if (date > start_date and date < end_date):
         return 0
     else:
@@ -55,12 +55,12 @@ def calc_LST(clock_time,date,day):
     L_std=15
     L_loc=8.431667
 
-    return clock_time+ (1/15)*(L_std-L_loc)+calc_E(day)-calc_DT(date)
+    return (clock_time + (1/15)*(L_std-L_loc)+calc_E(day)-calc_DT(date))
 
 # formula 5,6
 # E- Equation of time [hr]- the difference between local solar time ,LST and the local Civil time, LCT is called the time equation
 def calc_E(day):
-    B=(360(day-81))/364
+    B=(360*(day-81))/364
     return 0.165*math.sin(B)-0.126*math.cos(B)-0.025*math.sin(B)
 
 
@@ -114,8 +114,9 @@ def calc_total_irradiance(I_ground_reflection,I_tilt,I_direct):
 if __name__ == "__main__":
     #given date,Ighi,time,,latitude_angle
 
-    day=day_number(date)
 
+
+    day=day_number(date)
     Ion=calc_extraterrestrial_irradiation(day)
 
     declination_angle=clac_declination_angle(day)
@@ -143,3 +144,4 @@ if __name__ == "__main__":
     reflection_irradiance=calc_diffused_irradiance_ground_reflection(Ighi,tilt_angle,p)
 
     total_irradiance=direct_irradiance_at_surface+tilt_irradiance+reflection_irradiance
+    print(total_irradiance)
