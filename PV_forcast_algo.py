@@ -4,9 +4,9 @@ import datetime
 from datetime import datetime
 
 
+# ---------- FUNCTIONS ----------
+
 #get the day from a date
-
-
 def day_number(date):
     return datetime(date).timetuple().tm_yday
 #formula 1
@@ -51,14 +51,14 @@ def calc_DT(date):
 
 
 
-def calc_LST(clock_time,DT,day):
+def calc_LST(clock_time,date,day):
     L_std=15
     L_loc=8.431667
 
-    return clock_time+ (1/15)*(L_std-L_loc)+calc_E(day)-calc_DT(DT)
+    return clock_time+ (1/15)*(L_std-L_loc)+calc_E(day)-calc_DT(date)
 
 # formula 5,6
-# E- Equation of time [hr]- the difference between local solar time ,LST and the local Civil time, LCT is called the time equation- see ahead
+# E- Equation of time [hr]- the difference between local solar time ,LST and the local Civil time, LCT is called the time equation
 def calc_E(day):
     B=(360(day-81))/364
     return 0.165*math.sin(B)-0.126*math.cos(B)-0.025*math.sin(B)
@@ -71,6 +71,9 @@ def calc_E(day):
 def calc_Zenith_angle(declimation_angle,latitude_angle,hour_angle):
     return math.sin(declimation_angle)*math.sin(latitude_angle)+math.cos(declimation_angle)*math.cos(latitude_angle)*math.cos(hour_angle)
 
+
+#latitude angle figure out
+
 def calc_I_ot(day,declimation_angle,latitude_angle,hour_angle):
     return calc_extraterrestrial_irradiation(day)*calc_Zenith_angle(declimation_angle,latitude_angle,hour_angle)
 
@@ -78,28 +81,65 @@ def calc_clearness_index(Iot,Ighi):
     index=Ighi/Iot
     return index
 
-def diffused_irradiance(clearness_index,Ighi):
+def calc_diffused_irradiance(clearness_index,Ighi):
     return (1-1.13*clearness_index)*Ighi
 
-def direct_irradiance(Ighi,Idiffused):
-    return Ighi-Idiffused
+def calc_direct_irradiance(Ighi,clearness_index):
+    return Ighi-calc_diffused_irradiance(clearness_index,Ighi)
 
-def total_angle(latitude_angle,zenith_angle,tilt_angle):
+def calc_total_angle(latitude_angle,zenith_angle,tilt_angle):
     return latitude_angle-zenith_angle-tilt_angle
 
 #the direct irradiance at the tilted surface is calculated as follows
 
-def direct_irradiance_at_surface(total_angle,zenith_angle,direct_irradiance):
+def calc_direct_irradiance_at_surface(total_angle,zenith_angle,direct_irradiance):
     return direct_irradiance*(math.cos(total_angle)/math.cos(zenith_angle))
 
-def diffused_irradiance_tilt(diffused_irradiance,tilt_angle):
+def calc_diffused_irradiance_tilt(diffused_irradiance,tilt_angle):
     return 0.5*diffused_irradiance*(1+math.cos(tilt_angle))
 
 #ρ is the ground albedo: usually 0.2 but can reach up to 0.8 in snow and ice
-def diffused_irradiance_ground_reflection(Ighi,tilt_angle,p):
+def calc_diffused_irradiance_ground_reflection(Ighi,tilt_angle,p):
     return 0.5*p*Ighi*(1-math.cos(tilt_angle))
 
-def total_irradiance(I_ground_reflection,I_tilt,I_direct):
+def calc_total_irradiance(I_ground_reflection,I_tilt,I_direct):
     return I_ground_reflection+I_tilt+I_direct
 
 
+
+
+
+
+
+if __name__ == "__main__":
+    #given date,Ighi,time,,latitude_angle
+
+    day=day_number(date)
+
+    Ion=calc_extraterrestrial_irradiation(day)
+
+    declination_angle=clac_declination_angle(day)
+
+    hour_angle=calc_hour_angle(time)
+
+    lst=calc_LST(time,date,day)
+
+    Iot=calc_I_ot(day,declination_angle,latitude_angle,hour_angle)
+
+    clearness_index=calc_clearness_index(Iot,Ighi)
+
+    direct_irradiance =calc_direct_irradiance(Ighi,clearness_index)
+
+    zenith_angle=calc_Zenith_angle(declination_angle,latitude_angle,hour_angle)
+
+    total_angle=calc_total_angle(latitude_angle,zenith_angle,tilt_angle)
+
+    direct_irradiance_at_surface=calc_direct_irradiance_at_surface(total_angle,zenith_angle,direct_irradiance)
+
+    diffused_irr=calc_diffused_irradiance(clearness_index,Ighi)
+
+    tilt_irradiance=calc_diffused_irradiance_tilt(diffused_irr,tilt_angle)
+
+    reflection_irradiance=calc_diffused_irradiance_ground_reflection(Ighi,tilt_angle,p)
+
+    total_irradiance=direct_irradiance_at_surface+tilt_irradiance+reflection_irradiance
