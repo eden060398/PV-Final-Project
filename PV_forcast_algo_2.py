@@ -5,7 +5,9 @@ import datetime
 LATITUDE_ANGLE = 44.298611 * math.pi / 180
 LONGITUDE_ANGLE = 8.448333 * math.pi / 180
 STANDARD_MERIDIAN = 15 * math.pi / 180
-
+# Values unknown, need to ask Yuval
+TILT_ANGLE = 0
+GROUND_ALBEDO = 0.2
 
 # formula 1
 # day variable is the day in the year in number from 1 to 365
@@ -26,7 +28,7 @@ def declination_angle(time_data):
 # time variable is local civil time
 def hour_angle(time_data):
     solar_time = local_solar_time(time_data)
-    return ((12 - solar_time) / 24) * 2 * math.pi
+    return ((solar_time / 12) - 1) * math.pi
 
 
 # formula 4
@@ -55,8 +57,8 @@ def daylight_saving_correction(time_data):
 
 
 def local_solar_time(time_data):
-    civil_time = time_data.hour + (time_data.minute + time_data.second / 60) / 60
-    return civil_time + (1 / 15) * (STANDARD_MERIDIAN - LONGITUDE_ANGLE) + equation_of_time(time_data) - \
+    clock_time = time_data.hour + (time_data.minute + time_data.second / 60) / 60
+    return clock_time + (1 / 15) * (STANDARD_MERIDIAN - LONGITUDE_ANGLE) + equation_of_time(time_data) - \
         daylight_saving_correction(time_data)
 
 
@@ -77,9 +79,32 @@ def cos_zenith_angle(time_data):
         math.cos(LATITUDE_ANGLE) * math.cos(hr_angle)
 
 
+# formula 13
+# cos(total_angle) calculation
+def cos_total_angle(time_data):
+    return math.cos(LATITUDE_ANGLE - declination_angle(time_data) - TILT_ANGLE)
+
+
 # formula 10 (and 8)
 # clearness index calculation
 def clearness_index(time_data, measured_irradiation):
     return measured_irradiation / (extraterrestrial_irradiation(time_data) * cos_zenith_angle(time_data))
 
+
+# formula 11
+# diffused irradiation
+def diffused_irradiation(time_data, measured_irradiation):
+    return (1 - 1.13 * clearness_index(time_data, measured_irradiation)) * measured_irradiation
+
+
+# formula 17
+# total irradiation
+def total_irradiation(time_data, measured_irradiation):
+    diffused_ird = diffused_irradiation(time_data, measured_irradiation)
+    direct_ird = measured_irradiation - diffused_ird
+    cos_tilt = math.cos(TILT_ANGLE)
+
+    return direct_ird * (cos_total_angle(time_data) / cos_zenith_angle(time_data)) + \
+        0.5 * diffused_ird * (1 + cos_tilt) + \
+        0.5 * GROUND_ALBEDO * measured_irradiation * (1 - cos_tilt)
 
