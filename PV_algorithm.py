@@ -1,20 +1,34 @@
 import math
 import datetime
+import matplotlib.pyplot as plt
+from DataParser import load_data
 
 # Savona Parameters
-LATITUDE_ANGLE = 44.298611 * math.pi / 180
-LONGITUDE_ANGLE = 8.448333 * math.pi / 180
-STANDARD_MERIDIAN = 15 * math.pi / 180
-# Values unknown, need to ask Yuval
-TILT_ANGLE = 0
+LATITUDE_ANGLE = 44.298611
+LONGITUDE_ANGLE = 8.448333
+STANDARD_MERIDIAN = 15
+
+TILT_ANGLE = 15
 GROUND_ALBEDO = 0.2
+P_MAX_STC = 240
+COEFF_P_MAX = -0.0043
+NOC_TEMP = 43
 
 
 # ---------- GENERAL FUNCTIONS ----------
+def sin(deg):
+    return math.sin(math.radians(deg))
+
+
+def cos(deg):
+    return math.cos(math.radians(deg))
+
+
 # formula 1
 # day variable is the day in the year in number from 1 to 365
 def _extraterrestrial_irradiance(time_data):
-    return 1376 * (1 + 0.033 * math.cos((2 * math.pi * (time_data.day / 365))))
+    day_of_year = time_data.timetuple().tm_yday
+    return 1376 * (1 + 0.033 * math.cos((2 * math.pi * (day_of_year / 365))))
 
 
 # formula 2
@@ -22,7 +36,8 @@ def _extraterrestrial_irradiance(time_data):
 # the earth.
 # the equation is calculated in radians
 def _declination_angle(time_data):
-    return 23.45 * math.sin((2 * math.pi * (time_data.day + 240)) / 365)
+    day_of_year = time_data.timetuple().tm_yday
+    return 23.45 * sin((360 * (day_of_year + 284)) / 365)
 
 
 # formula 4
@@ -54,14 +69,15 @@ def _daylight_saving_correction(time_data):
 # E- Equation of time [hr]- the difference between local solar time ,LST and the local Civil time,
 # LCT is called the time equation- see ahead
 def _equation_of_time(time_data):
-    B = (2 * math.pi * (time_data.day - 81)) / 364
-    return 0.165 * math.sin(B) - 0.126 * math.cos(B) - 0.025 * math.sin(B)
+    day_of_year = time_data.timetuple().tm_yday
+    B = (360 * (day_of_year - 81)) / 364
+    return 0.165 * sin(B) - 0.126 * cos(B) - 0.025 * sin(B)
 
 
 # ---------- PV Predictor ----------
 class PVPredictor(object):
-    def __init__(self, tilt=0, ground_albido=0.2, latitude=LATITUDE_ANGLE, longitude=LONGITUDE_ANGLE,
-                 std_meridian=STANDARD_MERIDIAN, p_max_stc=190, coeff_p_max=-0.45, noc_temp=45):
+    def __init__(self, tilt=TILT_ANGLE, ground_albido=GROUND_ALBEDO, latitude=LATITUDE_ANGLE, longitude=LONGITUDE_ANGLE,
+                 std_meridian=STANDARD_MERIDIAN, p_max_stc=P_MAX_STC, coeff_p_max=COEFF_P_MAX, noc_temp=NOC_TEMP):
         self.tilt = tilt
         self.ground_albido = ground_albido
         self.latitude = latitude
@@ -76,7 +92,7 @@ class PVPredictor(object):
     # time variable is local civil time
     def _hour_angle(self, time_data):
         solar_time = self._local_solar_time(time_data)
-        return ((solar_time / 12) - 1) * math.pi
+        return 15 * (solar_time - 12)
 
     def _local_solar_time(self, time_data):
         clock_time = time_data.hour + (time_data.minute + time_data.second / 60) / 60
@@ -88,13 +104,12 @@ class PVPredictor(object):
     def _cos_zenith_angle(self, time_data):
         dec_angle = _declination_angle(time_data)
         hr_angle = self._hour_angle(time_data)
-        return math.sin(dec_angle) * math.sin(self.latitude) + math.cos(dec_angle) * \
-            math.cos(self.latitude) * math.cos(hr_angle)
+        return sin(dec_angle) * sin(self.latitude) + cos(dec_angle) * cos(self.latitude) * cos(hr_angle)
 
     # formula 23
     # cos(total_angle) calculation
     def _cos_total_angle(self, time_data):
-        return math.cos(self.latitude - _declination_angle(time_data) - self.tilt)
+        return cos(self.latitude - _declination_angle(time_data) - self.tilt)
         # Code for method 2: (incomplete)
         # cos_z = self._cos_zenith_angle(time_data)
         # W = math.cos(self.tilt) / cos_z
@@ -118,7 +133,7 @@ class PVPredictor(object):
     def total_irradiance(self, time_data, measured_irradiance):
         diffused_ird = self._diffused_irradiance(time_data, measured_irradiance)
         direct_ird = measured_irradiance - diffused_ird
-        cos_tilt = math.cos(self.tilt)
+        cos_tilt = cos(self.tilt)
 
         return direct_ird * (self._cos_total_angle(time_data) / self._cos_zenith_angle(time_data)) + \
             0.5 * diffused_ird * (1 + cos_tilt) + \
@@ -137,11 +152,30 @@ class PVPredictor(object):
 def main():
     # A few tests
     pv_pred = PVPredictor()
-    time_data = datetime.datetime(2018, 1, 1, 11, 1, 34)
-    measured_irradiance = 207
-    amb_temp = 12.6
 
-    print(pv_pred.output_power(time_data, measured_irradiance, amb_temp))
+    print()
+    data, output = load_data()
+
+    n = len(data['datetime'])
+    x = []
+    pred = []
+    out = []
+    prev_percent = 0
+    for i in range(0, n, 50):
+        x.append(365 * i / n)
+        percent = 100 * i / n
+        if percent - prev_percent >= 1:
+            print(percent)
+            prev_percent = int(percent)
+        pred.append(pv_pred.total_irradiance(data['datetime'][i], data['irradiance'][i]))
+        j = min(list(range(len(output['datetime']))),
+                key=lambda x: abs(output['datetime'][x] - data['datetime'][i]))
+        out.append(output['radiation'][j])
+
+    plt.plot(x, pred, label='Predicted Radiation')
+    plt.plot(x, out, label='Actual Radiation')
+    plt.legend()
+    plt.show()
 
 
 if __name__ == "__main__":
