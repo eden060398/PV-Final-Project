@@ -9,7 +9,7 @@ LONGITUDE_ANGLE = 8.448333
 STANDARD_MERIDIAN = 15
 
 TILT_ANGLE = 15
-AZIMUTH_ANGLE = -30
+AZIMUTH_ANGLE = 150
 GROUND_ALBEDO = 0.2
 P_MAX_STC = 240
 COEFF_P_MAX = -0.0043
@@ -25,6 +25,14 @@ def cos(deg):
     return math.cos(math.radians(deg))
 
 
+def asin(x):
+    return math.degrees(math.asin(x))
+
+
+def acos(x):
+    return math.degrees(math.acos(x))
+
+
 # formula 1
 # day variable is the day in the year in number from 1 to 365
 def _extraterrestrial_irradiance(time_data):
@@ -35,7 +43,6 @@ def _extraterrestrial_irradiance(time_data):
 # formula 2
 # Declination angle is the angle between a plane perpendicular to incoming solar radiation and the rotational axis of
 # the earth.
-# the equation is calculated in radians
 def _declination_angle(time_data):
     day_of_year = time_data.timetuple().tm_yday
     return 23.45 * sin((360 * (day_of_year + 284)) / 365)
@@ -109,15 +116,30 @@ class PVPredictor(object):
         hr_angle = self._hour_angle(time_data)
         return sin(dec_angle) * sin(self.latitude) + cos(dec_angle) * cos(self.latitude) * cos(hr_angle)
 
-    # formula 23
+    def _sun_azimuth(self, time_data):
+        dec_angle = _declination_angle(time_data)
+        hr_angle = self._hour_angle(time_data)
+        sin_z = math.sin(math.acos(self._cos_zenith_angle(time_data)))
+        cos_azimuth = (sin(dec_angle)*cos(self.latitude) - cos(dec_angle)*sin(self.latitude)*cos(hr_angle)) / (-sin_z)
+        azimuth = acos(cos_azimuth)
+        if hr_angle > 0:
+            azimuth = 360 - azimuth
+        return azimuth
+
+        # formula 23
     # cos(total_angle) calculation
     def _cos_total_angle(self, time_data):
+        dec_angle = _declination_angle(time_data)
+        return cos(self.latitude - dec_angle - self.tilt)
+        """
         cos_z = self._cos_zenith_angle(time_data)
+        sun_azimuth = self._sun_azimuth(time_data)
         W = cos(self.tilt) / cos_z
         a = sin(self.tilt)
         b = cos(self.tilt) * math.sin(math.acos(cos_z)) / cos_z
         return 0.5 * (W + (1/W) - (b**2/W) - (a**2/W)) + \
-            (a*b/W) * cos(self.azimuth - self.tilt)
+            (a*b/W) * cos(sun_azimuth - self.azimuth)
+        """
 
     # formula 10 (and 8)
     # clearness index calculation

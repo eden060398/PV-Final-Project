@@ -1,4 +1,3 @@
-
 # ---------- IMPORTS ----------
 import DataParser
 import PV_algorithm
@@ -13,16 +12,15 @@ def optimal_angle_by_output():
     irradiances = data['irradiance']
     temperatures = data['temp']
     mean_per_angle = {}
-    length = len(data['temp'])
-    zipped = list(zip(dates,irradiances,temperatures))
+    length = len(data['datetime'])
     x = []
     y = []
-    for angle in range(initial_tilt-15,initial_tilt+15+1):
+    for angle in range(initial_tilt - 15, initial_tilt + 15 + 1):
+        pv_pred.tilt = angle
         sum_pv_output = 0
-        for date, irradiance, temp in zipped:
-            pv_pred.tilt = angle
+        for date, irradiance, temp in zip(dates, irradiances, temperatures):
             sum_pv_output += pv_pred.output_power(date, irradiance, temp)
-        mean_per_angle[angle] = sum_pv_output/length
+        mean_per_angle[angle] = sum_pv_output / length
         x.append(angle)
         y.append(mean_per_angle[angle])
     print(y.index(max(y)))
@@ -32,8 +30,6 @@ def optimal_angle_by_output():
     plt.show()
 
 
-
-
 def optimal_angle_by_irradiance():
     pv_pred = PV_algorithm.PVPredictor()
     data, output = DataParser.load_data()
@@ -41,16 +37,15 @@ def optimal_angle_by_irradiance():
     dates = data['datetime']
     irradiances = data['irradiance']
     mean_per_angle = {}
-    length = len(data['temp'])
-    zipped = list(zip(dates,irradiances))
+    length = len(data['datetime'])
     x = []
     y = []
-    for angle in range(initial_tilt-15,initial_tilt+15+1):
+    for angle in range(initial_tilt - 15, initial_tilt + 15 + 1):
         sum_pv_irradiance = 0
-        for date, irradiance in zipped:
-            pv_pred.tilt = angle
+        pv_pred.tilt = angle
+        for date, irradiance in zip(dates, irradiances):
             sum_pv_irradiance += pv_pred.total_irradiance(date, irradiance)
-        mean_per_angle[angle] = sum_pv_irradiance/length
+        mean_per_angle[angle] = sum_pv_irradiance / length
         x.append(angle)
         y.append(mean_per_angle[angle])
     print(y.index(max(y)))
@@ -59,4 +54,5 @@ def optimal_angle_by_irradiance():
     plt.legend()
     plt.show()
 
-optimal_angle_by_output()
+
+optimal_angle_by_irradiance()
