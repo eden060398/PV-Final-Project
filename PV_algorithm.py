@@ -82,6 +82,28 @@ def _equation_of_time(time_data):
     return 0.165 * sin(2*B) - 0.126 * cos(B) - 0.025 * sin(B)
 
 
+def compute_daily_average(datetimes, values):
+        daily_avgs = []
+        cur_date = None
+        total = 0
+        count = 0
+        for time_data, val in zip(datetimes, values):
+            if 10 <= time_data.hour < 16:
+                if cur_date is None:
+                    cur_date = time_data.date()
+                elif cur_date != time_data.date():
+                    daily_avgs.append((cur_date, total / count))
+                    total = 0
+                    count = 0
+                    cur_date = time_data.date()
+                total += val
+                count += 1
+        if cur_date is not None:
+            daily_avgs.append((cur_date, total / count))
+
+        return daily_avgs
+
+
 # ---------- PV Predictor ----------
 class PVPredictor(object):
     def __init__(self, tilt=TILT_ANGLE, azimuth=AZIMUTH_ANGLE, ground_albido=GROUND_ALBEDO, latitude=LATITUDE_ANGLE,
@@ -141,6 +163,7 @@ class PVPredictor(object):
             (a*b/W) * cos(sun_azimuth - self.azimuth)
         """
 
+
     # formula 10 (and 8)
     # clearness index calculation
     def _clearness_index(self, time_data, measured_irradiance):
@@ -171,6 +194,16 @@ class PVPredictor(object):
         return self.p_max_stc * (total_irradiance / 1000) * \
             (1 + self.coeff_p_max * (cell_temp - 25))
 
+    def compute_predictions(self, datetimes, irradiances):
+        predictions = []
+        for time_data, irrad in zip(datetimes, irradiances):
+            predictions.append(self.total_irradiance(time_data, irrad))
+
+        return predictions
+
+    def compute_daily_irradiance(self, datetimes, irradiances):
+        return compute_daily_average(datetimes, self.compute_predictions(datetimes, irradiances))
+
 
 def main():
     # A few tests
@@ -179,25 +212,24 @@ def main():
     print()
     data, output = load_data()
 
-    n = len(data['datetime'])
-    x = []
-    pred = []
-    out = []
-    prev_percent = 0
-    for i in range(0, n, 100):
-        x.append(365 * i / n)
-        percent = int(100 * i / n)
-        if percent > prev_percent:
-            print(percent)
-            prev_percent = percent
-        pred.append(pv_pred.total_irradiance(data['datetime'][i], data['irradiance'][i]))
-        j = min(list(range(len(output['datetime']))),
-                key=lambda x: abs(output['datetime'][x] - data['datetime'][i]))
-        out.append(output['radiation'][j])
+    daily_pred_avgs = pv_pred.compute_daily_irradiance(data['datetime'], data['irradiance'])
+    daily_meas_avg = compute_daily_average(output['datetime'], output['radiation'])
 
-    plt.plot(x, pred, label='Predicted Radiation')
-    plt.plot(x, out, label='Actual Radiation')
-    plt.ylim(-100, 2000)
+    dates_pred, pred = list(zip(*daily_pred_avgs))
+    dates_meas, meas = list(zip(*daily_meas_avg))
+
+    preds = pv_pred.compute_predictions(data['datetime'], data['irradiance'])
+    i = max(list(range(len(preds))), key=lambda x: preds[x])
+    print(data['datetime'][i])
+    print(preds[i])
+    print(data['datetime'][i].timetuple().tm_yday)
+    print(_extraterrestrial_irradiance(data['datetime'][i]))
+    print(_equation_of_time(data['datetime'][i]))
+    print(_extraterrestrial_irradiance(data['datetime'][i])*pv_pred._cos_zenith_angle(data['datetime'][i]))
+
+    plt.plot(dates_pred, pred, label='Predicted Radiation')
+    plt.plot(dates_meas, meas, label='Actual Radiation')
+    # plt.ylim(-100, 2000)
     plt.legend()
     plt.show()
 
