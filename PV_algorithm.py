@@ -151,15 +151,15 @@ class PVPredictor(object):
         # formula 23
     # cos(total_angle) calculation
     def _cos_total_angle(self, time_data):
-        dec_angle = _declination_angle(time_data)
-        return cos(self.latitude - dec_angle - self.tilt)
-        # cos_z = self._cos_zenith_angle(time_data)
-        # sun_azimuth = self._sun_azimuth(time_data)
-        # W = cos(self.tilt) / cos_z
-        # a = sin(self.tilt)
-        # b = cos(self.tilt) * math.sin(math.acos(cos_z)) / cos_z
-        # return 0.5 * (W + (1 - b**2 - a**2) / W) + \
-        #     (a*b/W) * cos(sun_azimuth - self.azimuth)
+        # dec_angle = _declination_angle(time_data)
+        # return cos(self.latitude - dec_angle - self.tilt)
+        cos_z = self._cos_zenith_angle(time_data)
+        sun_azimuth = self._sun_azimuth(time_data)
+        W = cos(self.tilt) / cos_z
+        a = sin(self.tilt)
+        b = cos(self.tilt) * math.sin(math.acos(cos_z)) / cos_z
+        return 0.5 * (W + (1 - b**2 - a**2) / W) + \
+            (a*b/W) * cos(sun_azimuth - self.azimuth)
 
     # formula 10 (and 8)
     # clearness index calculation
