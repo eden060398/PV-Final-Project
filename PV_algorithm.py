@@ -9,9 +9,9 @@ LONGITUDE_ANGLE = 8.448333
 STANDARD_MERIDIAN = 15
 
 TILT_ANGLE = 15
-AZIMUTH_ANGLE = 150
+AZIMUTH_ANGLE = -30
 GROUND_ALBEDO = 0.2
-P_MAX_STC = 240
+P_MAX_STC = 80
 COEFF_P_MAX = -0.0043
 NOC_TEMP = 43
 
@@ -144,8 +144,8 @@ class PVPredictor(object):
         sin_z = math.sin(math.acos(self._cos_zenith_angle(time_data)))
         cos_azimuth = (sin(dec_angle)*cos(self.latitude) - cos(dec_angle)*sin(self.latitude)*cos(hr_angle)) / (-sin_z)
         azimuth = acos(cos_azimuth)
-        if hr_angle > 0:
-            azimuth = 360 - azimuth
+        # if hr_angle > 0:
+        #     azimuth = 360 - azimuth
         return azimuth
 
         # formula 23
@@ -153,16 +153,13 @@ class PVPredictor(object):
     def _cos_total_angle(self, time_data):
         dec_angle = _declination_angle(time_data)
         return cos(self.latitude - dec_angle - self.tilt)
-        """
-        cos_z = self._cos_zenith_angle(time_data)
-        sun_azimuth = self._sun_azimuth(time_data)
-        W = cos(self.tilt) / cos_z
-        a = sin(self.tilt)
-        b = cos(self.tilt) * math.sin(math.acos(cos_z)) / cos_z
-        return 0.5 * (W + (1/W) - (b**2/W) - (a**2/W)) + \
-            (a*b/W) * cos(sun_azimuth - self.azimuth)
-        """
-
+        # cos_z = self._cos_zenith_angle(time_data)
+        # sun_azimuth = self._sun_azimuth(time_data)
+        # W = cos(self.tilt) / cos_z
+        # a = sin(self.tilt)
+        # b = cos(self.tilt) * math.sin(math.acos(cos_z)) / cos_z
+        # return 0.5 * (W + (1 - b**2 - a**2) / W) + \
+        #     (a*b/W) * cos(sun_azimuth - self.azimuth)
 
     # formula 10 (and 8)
     # clearness index calculation
@@ -186,7 +183,7 @@ class PVPredictor(object):
             0.5 * self.ground_albido * measured_irradiance * (1 - cos_tilt)
 
     # formula 20
-    # total output power
+    # total output power [kW]
     def output_power(self, time_data, measured_irradiance, amb_temp):
         total_irradiance = self.total_irradiance(time_data, measured_irradiance)
         cell_temp = ((self.noc_temp - 20) / 800) * total_irradiance + amb_temp
@@ -194,22 +191,31 @@ class PVPredictor(object):
         return self.p_max_stc * (total_irradiance / 1000) * \
             (1 + self.coeff_p_max * (cell_temp - 25))
 
-    def compute_predictions(self, datetimes, irradiances):
+    def compute_rad_predictions(self, datetimes, irradiances):
         predictions = []
         for time_data, irrad in zip(datetimes, irradiances):
             predictions.append(self.total_irradiance(time_data, irrad))
 
         return predictions
 
+    def compute_power_predictions(self, datetimes, irradiances, temps):
+        predictions = []
+        for time_data, irrad, amb_temp in zip(datetimes, irradiances, temps):
+            predictions.append(self.output_power(time_data, irrad, amb_temp))
+
+        return predictions
+
     def compute_daily_irradiance(self, datetimes, irradiances):
-        return compute_daily_average(datetimes, self.compute_predictions(datetimes, irradiances))
+        return compute_daily_average(datetimes, self.compute_rad_predictions(datetimes, irradiances))
+
+    def compute_daily_power(self, datetimes, irradiances, temps):
+        return compute_daily_average(datetimes, self.compute_power_predictions(datetimes, irradiances, temps))
 
 
 def main():
     # A few tests
     pv_pred = PVPredictor()
 
-    print()
     data, output = load_data()
 
     daily_pred_avgs = pv_pred.compute_daily_irradiance(data['datetime'], data['irradiance'])
@@ -218,18 +224,26 @@ def main():
     dates_pred, pred = list(zip(*daily_pred_avgs))
     dates_meas, meas = list(zip(*daily_meas_avg))
 
-    preds = pv_pred.compute_predictions(data['datetime'], data['irradiance'])
-    i = max(list(range(len(preds))), key=lambda x: preds[x])
-    print(data['datetime'][i])
-    print(preds[i])
-    print(data['datetime'][i].timetuple().tm_yday)
-    print(_extraterrestrial_irradiance(data['datetime'][i]))
-    print(_equation_of_time(data['datetime'][i]))
-    print(_extraterrestrial_irradiance(data['datetime'][i])*pv_pred._cos_zenith_angle(data['datetime'][i]))
+    mae = 100 * sum(abs(a - b) / b for a, b in zip(pred, meas) if b > 200) / len(meas)
+    print('Irradiance MAE:', round(mae, 2), '%')
 
     plt.plot(dates_pred, pred, label='Predicted Radiation')
     plt.plot(dates_meas, meas, label='Actual Radiation')
     # plt.ylim(-100, 2000)
+    plt.legend()
+    plt.show()
+
+    daily_pred_avgs = pv_pred.compute_daily_power(data['datetime'], data['irradiance'], data['temp'])
+    daily_meas_avg = compute_daily_average(output['datetime'], output['power'])
+
+    dates_pred, pred = list(zip(*daily_pred_avgs))
+    dates_meas, meas = list(zip(*daily_meas_avg))
+
+    mae = 100 * sum(abs(a - b) / b for a, b in zip(pred, meas) if b > 10) / len(meas)
+    print('Power MAE:', round(mae, 2), '%')
+
+    plt.plot(dates_pred, pred, label='Predicted Power')
+    plt.plot(dates_meas, meas, label='Actual Power')
     plt.legend()
     plt.show()
 
