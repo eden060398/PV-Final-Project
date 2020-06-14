@@ -1,11 +1,11 @@
 # ---------- IMPORTS ----------
 import DataParser
-import PV_algorithm
+import PVAlgorithm
 import matplotlib.pyplot as plt
 
 
 def optimal_angle_by_output():
-    pv_pred = PV_algorithm.PVPredictor()
+    pv_pred = PVAlgorithm.PVPredictor()
     data, output = DataParser.load_data()
     initial_tilt = 15
     dates = data['datetime']
@@ -31,7 +31,7 @@ def optimal_angle_by_output():
 
 
 def optimal_angle_by_irradiance():
-    pv_pred = PV_algorithm.PVPredictor()
+    pv_pred = PVAlgorithm.PVPredictor()
     data, output = DataParser.load_data()
     initial_tilt = 15
     dates = data['datetime']
