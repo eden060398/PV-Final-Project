@@ -14,7 +14,7 @@ class DataRetriever:
 
         self.timezone = pytz.timezone(TimezoneFinder().timezone_at(lng=longitude, lat=latitude))
 
-    def get_data(self, year=2014):
+    def get_data(self, year=2016):
         params = {'lat': self.latitude,
                   'lon': self.longitude,
                   'outputformat': 'json',
