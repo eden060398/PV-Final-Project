@@ -1,20 +1,10 @@
 import math
 import datetime
-import matplotlib.pyplot as plt
-from DataParser import load_data
+from timezonefinder import TimezoneFinder
+import pytz
+import dateutil.parser as DP
 
-# Savona Parameters
-LATITUDE_ANGLE = 44.298611
-LONGITUDE_ANGLE = 8.448333
-STANDARD_MERIDIAN = 15
-
-TILT_ANGLE = 15
-AZIMUTH_ANGLE = -30
 GROUND_ALBEDO = 0.2
-P_MAX_STC = 80
-COEFF_P_MAX = -0.0043
-NOC_TEMP = 43
-
 
 # ---------- GENERAL FUNCTIONS ----------
 def sin(deg):
@@ -64,13 +54,11 @@ def _declination_angle(time_data):
 # Back to standard time on Sunday 28 October 2018 - 02 h 00 (GMT + 1 h ) CET
 # we calculated the longitude degree according to https://www.fcc.gov/media/radio/dms-decimal and we got that the
 # longitude degree is 8.431667
-def _daylight_saving_correction(time_data):
-    start_date = datetime.datetime(2018, 3, 25, 3)
-    end_date = datetime.datetime(2018, 10, 28, 2)
-    if start_date <= time_data < end_date:
-        return 0
+def _daylight_saving_correction(time_data, timezone):
+    if time_data.tzinfo is None or time_data.tzinfo.utcoffset(time_data) is None:
+        return timezone.dst(time_data, is_dst=True).total_seconds() / 3600
     else:
-        return 1
+        return time_data.dst().total_seconds() / 3600
 
 
 # formula 5,6
@@ -82,42 +70,52 @@ def _equation_of_time(time_data):
     return 0.165 * sin(2*B) - 0.126 * cos(B) - 0.025 * sin(B)
 
 
-def compute_daily_average(datetimes, values):
+def compute_daily_average(datetimes, values, hour_range=None):
         daily_avgs = []
+
         cur_date = None
-        total = 0
-        count = 0
+        prev_time = None
+        day_vals = []
+        day_deltas = []
+
         for time_data, val in zip(datetimes, values):
-            if 10 <= time_data.hour < 16:
+            if hour_range is None or hour_range[0] <= time_data.hour < hour_range[1]:
                 if cur_date is None:
                     cur_date = time_data.date()
                 elif cur_date != time_data.date():
-                    daily_avgs.append((cur_date, total / count))
-                    total = 0
-                    count = 0
+                    total = sum(delta * (day_vals[i] + day_vals[i+1]) / 2 for i, delta in enumerate(day_deltas))
+                    daily_avgs.append((cur_date, total))
+                    prev_time = None
+                    day_vals = []
+                    day_deltas = []
                     cur_date = time_data.date()
-                total += val
-                count += 1
+
+                day_vals.append(val)
+                if prev_time is not None:
+                    day_deltas.append((time_data - prev_time).total_seconds() / 86400)
+                prev_time = time_data
         if cur_date is not None:
-            daily_avgs.append((cur_date, total / count))
+            total = sum(delta * (day_vals[i] + day_vals[i+1]) / 2 for i, delta in enumerate(day_deltas))
+            daily_avgs.append((cur_date, total))
 
         return daily_avgs
 
 
 # ---------- PV Predictor ----------
-class PVPredictor(object):
-    def __init__(self, tilt=TILT_ANGLE, azimuth=AZIMUTH_ANGLE, ground_albido=GROUND_ALBEDO, latitude=LATITUDE_ANGLE,
-                 longitude=LONGITUDE_ANGLE, std_meridian=STANDARD_MERIDIAN, p_max_stc=P_MAX_STC,
-                 coeff_p_max=COEFF_P_MAX, noc_temp=NOC_TEMP):
+class PVPredictor:
+    def __init__(self, tilt, azimuth, latitude, longitude, std_meridian, p_max_stc, coeff_p_max, noc_temp,
+                 ground_albedo=GROUND_ALBEDO):
         self.tilt = tilt
         self.azimuth = azimuth
-        self.ground_albido = ground_albido
+        self.ground_albedo = ground_albedo
         self.latitude = latitude
         self.longitude = longitude
         self.std_meridian = std_meridian
         self.p_max_stc = p_max_stc
         self.coeff_p_max = coeff_p_max
         self.noc_temp = noc_temp
+
+        self.timezone = pytz.timezone(TimezoneFinder().timezone_at(lng=longitude, lat=latitude))
 
     # formula 3
     # hour angle
@@ -129,7 +127,7 @@ class PVPredictor(object):
     def _local_solar_time(self, time_data):
         clock_time = time_data.hour + (time_data.minute + time_data.second / 60) / 60
         return clock_time + (1 / 15) * (self.longitude - self.std_meridian) + _equation_of_time(time_data) - \
-            _daylight_saving_correction(time_data)
+            _daylight_saving_correction(time_data, self.timezone)
 
     # formula 9
     # cos(zenith_angle) calculation
@@ -180,7 +178,7 @@ class PVPredictor(object):
 
         return direct_ird * (self._cos_total_angle(time_data) / self._cos_zenith_angle(time_data)) + \
             0.5 * diffused_ird * (1 + cos_tilt) + \
-            0.5 * self.ground_albido * measured_irradiance * (1 - cos_tilt)
+            0.5 * self.ground_albedo * measured_irradiance * (1 - cos_tilt)
 
     # formula 20
     # total output power [kW]
@@ -205,48 +203,10 @@ class PVPredictor(object):
 
         return predictions
 
-    def compute_daily_irradiance(self, datetimes, irradiances):
-        return compute_daily_average(datetimes, self.compute_rad_predictions(datetimes, irradiances))
+    def compute_daily_irradiance(self, datetimes, irradiances, hour_range=None):
+        return compute_daily_average(datetimes, self.compute_rad_predictions(datetimes, irradiances),
+                                     hour_range=hour_range)
 
-    def compute_daily_power(self, datetimes, irradiances, temps):
-        return compute_daily_average(datetimes, self.compute_power_predictions(datetimes, irradiances, temps))
-
-
-def main():
-    # A few tests
-    pv_pred = PVPredictor()
-
-    data, output = load_data()
-
-    daily_pred_avgs = pv_pred.compute_daily_irradiance(data['datetime'], data['irradiance'])
-    daily_meas_avg = compute_daily_average(output['datetime'], output['radiation'])
-
-    dates_pred, pred = list(zip(*daily_pred_avgs))
-    dates_meas, meas = list(zip(*daily_meas_avg))
-
-    mae = 100 * sum(abs(a - b) / b for a, b in zip(pred, meas) if b > 200) / len(meas)
-    print('Irradiance MAE:', round(mae, 2), '%')
-
-    plt.plot(dates_pred, pred, label='Predicted Radiation')
-    plt.plot(dates_meas, meas, label='Actual Radiation')
-    # plt.ylim(-100, 2000)
-    plt.legend()
-    plt.show()
-
-    daily_pred_avgs = pv_pred.compute_daily_power(data['datetime'], data['irradiance'], data['temp'])
-    daily_meas_avg = compute_daily_average(output['datetime'], output['power'])
-
-    dates_pred, pred = list(zip(*daily_pred_avgs))
-    dates_meas, meas = list(zip(*daily_meas_avg))
-
-    mae = 100 * sum(abs(a - b) / b for a, b in zip(pred, meas) if b > 10) / len(meas)
-    print('Power MAE:', round(mae, 2), '%')
-
-    plt.plot(dates_pred, pred, label='Predicted Power')
-    plt.plot(dates_meas, meas, label='Actual Power')
-    plt.legend()
-    plt.show()
-
-
-if __name__ == "__main__":
-    main()
+    def compute_daily_power(self, datetimes, irradiances, temps, hour_range=None):
+        return compute_daily_average(datetimes, self.compute_power_predictions(datetimes, irradiances, temps),
+                                     hour_range=hour_range)
