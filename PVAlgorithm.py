@@ -142,8 +142,6 @@ class PVPredictor:
         sin_z = math.sin(math.acos(self._cos_zenith_angle(time_data)))
         cos_azimuth = (sin(dec_angle)*cos(self.latitude) - cos(dec_angle)*sin(self.latitude)*cos(hr_angle)) / (-sin_z)
         azimuth = acos(cos_azimuth)
-        # if hr_angle > 0:
-        #     azimuth = 360 - azimuth
         return azimuth
 
         # formula 23
