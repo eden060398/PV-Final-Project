@@ -43,8 +43,12 @@ def savona_experiment():
     dates_pred, pred = list(zip(*daily_pred_avgs))
     dates_meas, meas = list(zip(*daily_meas_avg))
 
-    dae = 100 * abs(1 - sum(pred) / sum(meas))
-    print('Irradiance Daily Average Error:', round(dae, 2), '%')
+    dae = sum(abs(p - m) for p, m in zip(pred, meas)) / len(meas)
+    dae_per = 100 * sum(abs(p - m) for p, m in zip(pred, meas)) / sum(meas)
+    yae = abs(sum(pred) - sum(meas)) / len(pred)
+    yae_per = 100 * abs(1 - sum(pred) / sum(meas))
+    print('Irradiance Daily Average Error:', round(dae, 2), 'W/m^2', '({per} %)'.format(per=round(dae_per, 2)))
+    print('Irradiance Yearly Average Error:', round(yae, 2), 'W/m^2', '({per} %)'.format(per=round(yae_per, 2)))
 
     plt.plot(dates_pred, pred, label='Predicted Irradiance')
     plt.plot(dates_meas, meas, label='Actual Irradiance')
@@ -61,8 +65,12 @@ def savona_experiment():
     dates_pred, pred = list(zip(*daily_pred_avgs))
     dates_meas, meas = list(zip(*daily_meas_avg))
 
-    dae = 100 * abs(1 - sum(pred) / sum(meas))
-    print('Power Daily Average Error:', round(dae, 2), '%')
+    dae = sum(abs(p - m) for p, m in zip(pred, meas)) / len(meas)
+    dae_per = 100 * sum(abs(p - m) for p, m in zip(pred, meas)) / sum(meas)
+    yae = abs(sum(pred) - sum(meas)) / len(pred)
+    yae_per = 100 * abs(1 - sum(pred) / sum(meas))
+    print('Power Daily Average Error:', round(dae, 2), 'kW', '({per} %)'.format(per=round(dae_per, 2)))
+    print('Power Yearly Average Error:', round(yae, 2), 'kW', '({per} %)'.format(per=round(yae_per, 2)))
 
     plt.plot(dates_pred, pred, label='Predicted Power')
     plt.plot(dates_meas, meas, label='Actual Power')
@@ -81,7 +89,7 @@ def main():
                         help='Tilt angle of plane (tilt and azimuth are optimized if either isn\'t given)', default=None)
     parser.add_argument('-azimuth', '--azimuth-angle', type=float,
                         help='Azimuth angle of plane (tilt and azimuth are optimized if either isn\'t given)', default=None)
-    parser.add_argument('-Pmax', '--p-max-stc', type=float, help='Maximum power at STC [W] (default = 1)', default=1)
+    parser.add_argument('-Pmax', '--p-max-stc', type=float, help='Maximum power at STC [kW] (default = 1)', default=1)
     parser.add_argument('-noc', '--noc-temp', type=float,
                         help='NOC temperature [°C] (default = {default})'.format(default=NOC_TEMP), default=NOC_TEMP)
     parser.add_argument('-Pcoeff', '--p-max-coeff', type=float,
@@ -103,9 +111,9 @@ def main():
 
         print('Location:\n\t{lat}° N {lon}° E'.format(lat=args.latitude, lon=args.longitude))
         print('Surface:\n\tTilt = {tilt}°\n\tAzimuth = {azimuth}°'.format(tilt=tilt, azimuth=azimuth))
-        print('PV Array:\n\tMax Power = {pmax} W\n\tNOC Temperature = {noc} °C\n\tMax Power Coefficient = {pmax_coeff} %/°C'.format(pmax=args.p_max_stc,
-                                                                                                                                    noc=args.noc_temp,
-                                                                                                                                    pmax_coeff=args.p_max_coeff))
+        print('PV Array:\n\tMax Power = {pmax} kW\n\tNOC Temperature = {noc} °C\n\tMax Power Coefficient = {pmax_coeff} %/°C'.format(pmax=args.p_max_stc,
+                                                                                                                                     noc=args.noc_temp,
+                                                                                                                                     pmax_coeff=args.p_max_coeff))
         print()
 
         print('Computing irradiance...')
@@ -125,7 +133,7 @@ def main():
         daily_pred_avgs = pv_pred.compute_daily_power(data['datetime'], data['irradiance'], data['temp'])
         dates_pred, pred = list(zip(*daily_pred_avgs))
 
-        print('Power Daily Average:', round(sum(pred) / len(pred), 2), 'W')
+        print('Power Daily Average:', round(sum(pred) / len(pred), 2), 'kW')
 
         plt.plot(dates_pred, pred, label='Predicted Power')
         plt.ylabel('kW')
