@@ -15,10 +15,10 @@ COEFF_P_MAX = -0.0043
 NOC_TEMP = 43
 
 
-def savona_experiment():
+def savona_experiment(use_azimuth):
     pv_pred = PVPredictor(tilt=TILT_ANGLE, azimuth=AZIMUTH_ANGLE, latitude=LATITUDE_ANGLE,
                           longitude=LONGITUDE_ANGLE, std_meridian=STANDARD_MERIDIAN, p_max_stc=P_MAX_STC,
-                          coeff_p_max=COEFF_P_MAX, noc_temp=NOC_TEMP)
+                          coeff_p_max=COEFF_P_MAX, noc_temp=NOC_TEMP, use_azimuth=use_azimuth)
 
     print('Running the Savona comparative experiment')
     print('-----------------------------------------')
@@ -93,21 +93,23 @@ def main():
     parser.add_argument('-noc', '--noc-temp', type=float,
                         help='NOC temperature [°C] (default = {default})'.format(default=NOC_TEMP), default=NOC_TEMP)
     parser.add_argument('-Pcoeff', '--p-max-coeff', type=float,
-                        help='Temperature coefficient of maximum power [%%/°C] (default = {default})'.format(default=COEFF_P_MAX), default=COEFF_P_MAX)
+                        help='Temperature coefficient of maximum power [°C^-1] (default = {default})'.format(default=COEFF_P_MAX), default=COEFF_P_MAX)
     parser.add_argument('-exp', '--experiment', action='store_true',
                         help='Whether to run the comparative Savona experiment')
+    parser.add_argument('-noazimuth', '--no-azimuth', action='store_true',
+                        help='If present, runs the algorithm that doesn\'t use the azimuth angle')
 
     args = parser.parse_args()
 
     if args.experiment:
-        savona_experiment()
+        savona_experiment(not args.no_azimuth)
     else:
         dr = DataRetriever(args.latitude, args.longitude, tilt=args.tilt_angle, azimuth=args.azimuth_angle)
         data, tilt, azimuth, std_meridain = dr.get_data()
 
         pv_pred = PVPredictor(tilt=tilt, azimuth=azimuth, latitude=args.latitude, longitude=args.longitude,
-                              std_meridian=std_meridain, p_max_stc=args.p_max_stc,
-                              coeff_p_max=args.p_max_coeff, noc_temp=args.noc_temp)
+                              std_meridian=std_meridain, p_max_stc=args.p_max_stc, coeff_p_max=args.p_max_coeff,
+                              noc_temp=args.noc_temp, use_azimuth=not args.no_azimuth)
 
         print('Location:\n\t{lat}° N {lon}° E'.format(lat=args.latitude, lon=args.longitude))
         print('Surface:\n\tTilt = {tilt}°\n\tAzimuth = {azimuth}°'.format(tilt=tilt, azimuth=azimuth))

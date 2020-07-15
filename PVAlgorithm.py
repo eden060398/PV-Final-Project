@@ -104,7 +104,7 @@ def compute_daily_average(datetimes, values, hour_range=None):
 # ---------- PV Predictor ----------
 class PVPredictor:
     def __init__(self, tilt, azimuth, latitude, longitude, std_meridian, p_max_stc, coeff_p_max, noc_temp,
-                 ground_albedo=GROUND_ALBEDO):
+                 ground_albedo=GROUND_ALBEDO, use_azimuth=True):
         self.tilt = tilt
         self.azimuth = azimuth
         self.ground_albedo = ground_albedo
@@ -114,6 +114,7 @@ class PVPredictor:
         self.p_max_stc = p_max_stc
         self.coeff_p_max = coeff_p_max
         self.noc_temp = noc_temp
+        self.use_azimuth = use_azimuth
 
         self.timezone = pytz.timezone(TimezoneFinder().timezone_at(lng=longitude, lat=latitude))
 
@@ -147,15 +148,17 @@ class PVPredictor:
         # formula 23
     # cos(total_angle) calculation
     def _cos_total_angle(self, time_data):
-        # dec_angle = _declination_angle(time_data)
-        # return cos(self.latitude - dec_angle - self.tilt)
-        cos_z = self._cos_zenith_angle(time_data)
-        sun_azimuth = self._sun_azimuth(time_data)
-        W = cos(self.tilt) / cos_z
-        a = sin(self.tilt)
-        b = cos(self.tilt) * math.sin(math.acos(cos_z)) / cos_z
-        return 0.5 * (W + (1 - b**2 - a**2) / W) + \
-            (a*b/W) * cos(sun_azimuth - self.azimuth)
+        if self.use_azimuth:
+            cos_z = self._cos_zenith_angle(time_data)
+            sun_azimuth = self._sun_azimuth(time_data)
+            W = cos(self.tilt) / cos_z
+            a = sin(self.tilt)
+            b = cos(self.tilt) * math.sin(math.acos(cos_z)) / cos_z
+            return 0.5 * (W + (1 - b**2 - a**2) / W) + \
+                (a*b/W) * cos(sun_azimuth - self.azimuth)
+        else:
+            dec_angle = _declination_angle(time_data)
+            return cos(self.latitude - dec_angle - self.tilt)
 
     # formula 10 (and 8)
     # clearness index calculation
