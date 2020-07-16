@@ -1,8 +1,6 @@
 import math
-import datetime
 from timezonefinder import TimezoneFinder
 import pytz
-import dateutil.parser as DP
 
 GROUND_ALBEDO = 0.2
 
